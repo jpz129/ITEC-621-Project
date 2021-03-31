@@ -1,8 +1,7 @@
 ---
-title: "Preliminary Data Analysis Report"
+title: "EDA"
 author: "Pei-Hsin Lin"
 date: "3/30/2021"
-output: html_document
+output: pdf_document
 ---
-
 
