@@ -5,3 +5,53 @@ date: "3/30/2021"
 output: pdf_document
 ---
 
+```{r}
+library(tidyverse)
+data <- read_csv("data/project_data.csv")
+data <- na.omit(data)
+head(data)
+names(data)
+unique(data$date)
+```
+# EDA
+```{r}
+library(ggplot2)
+ggplot(aes(x=cases, y=average_listing_price), data=data) + 
+  geom_point() + geom_smooth()
+```
+
+```{r}
+# ggplot(aes(x=cases, y=average_listing_price, color=county), data=data) + 
+#   geom_point() # would prefer grouping them
+```
+
+```{r}
+ggplot(aes(x=cases, y=average_listing_price, color=state), data=data) + 
+  geom_point() # would prefer grouping them?
+```
+
+```{r}
+ggplot(aes(x=cases, y=average_listing_price, color=state), data=data) + 
+  geom_smooth()
+```
+```{r}
+# normality test
+set.seed(1)
+shapiro.test(sample(data$average_listing_price,5000)) # not normal # need Y transformation
+shapiro.test(sample(data$cases,5000)) # not normal
+```
+
+```{r}
+# correlation test
+cor.test(data$average_listing_price, data$cases) # correlated
+```
+
+
+```{r}
+# model...
+
+```
+
+
+
+
