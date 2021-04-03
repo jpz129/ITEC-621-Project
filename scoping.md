@@ -13,11 +13,20 @@ https://www.reuters.com/article/us-usa-economy-cities/bay-area-exodus-leading-ed
 
 **import population data, use as a predictor for determining median price, inventory, etc?**
 
+https://www.census.gov/data/datasets/time-series/demo/popest/2010s-total-cities-and-towns.html#ds
+
 #### Wealth, age, racial disparities 
 - low supply and high demand of homes during the pandemic favor long time homeowners, not first time buyers or renters 
 https://www.vox.com/22264268/covid-19-housing-insecurity-housing-prices-mortgage-rates-pandemic-zoning-supply-demand
 
 **divide city/regions into quartiles or groups depending on median home price (or import income data?)**
+
+#### Fluctuating morgage rates 
+- lower rates typically mean more purchasing 
+
+**import morgage rates**
+
+
 
 
 
