@@ -7,50 +7,179 @@ output: pdf_document
 
 ```{r}
 library(tidyverse)
-data <- read_csv("data/project_data.csv")
+data <- read_csv("data/project_data.csv")[,-1]
 data <- na.omit(data)
 head(data)
 names(data)
 unique(data$date)
+unique(data$county_fips) # 986
+unique(data$state) # 51
 ```
+
+
+```{r}
+data$region <- 0
+for (i in 1:nrow(data)) {
+  if (data$state[i] %in% c("connecticut","maine","massachusetts","new hampshire","rhode island", "vermont")) {
+    data$region[i] <- 1
+  } else if (data$state[i] %in% c("new jersey", "new york", "puerto rico")) {
+    data$region[i] <- 2
+  } else if (data$state[i] %in% c("delaware", "district of columbia", "maryland", "pennsylvania", "virginia", "west virginia")) {
+    data$region[i] <- 3
+  } else if (data$state[i] %in% c("alabama", "florida", "georgia", "kentucky", "mississippi", "north carolina", "south carolina", "tennessee")) {
+    data$region[i] <- 4
+  } else if (data$state[i] %in% c("illinois", "indiana", "michigan", "minnesota", "ohio", "wisconsin")) {
+    data$region[i] <- 5
+  } else if (data$state[i] %in% c("arkansas", "louisiana", "new mexico", "oklahoma", "texas")) {
+    data$region[i] <- 6
+  } else if (data$state[i] %in% c("iowa", "kansas", "missouri", "nebraska")) {
+    data$region[i] <- 7
+  } else if (data$state[i] %in% c("colorado", "montana", "north dakota", "south dakota", "utah", "wyoming")) {
+    data$region[i] <- 8
+  } else if (data$state[i] %in% c("arizona", "california", "hawaii", "nevada", "american samoa", "guam", "northern mariana islands")) {
+    data$region[i] <- 9
+  } else if (data$state[i] %in% c( "alaska", "idaho", "oregon", "washington")) {
+    data$region[i] <- 10
+  }
+}
+data$region <- as.factor(data$region)
+# Region I: Connecticut, Maine, Massachusetts, New Hampshire, Rhode Island, Vermont
+# Region II: New Jersey, New York, Puerto Rico, US Virgin Islands
+# Region III: Delaware, District of Columbia, Maryland, Pennsylvania, Virginia, West Virginia
+# Region IV: Alabama, Florida, Georgia, Kentucky, Mississippi, North Carolina, South Carolina, Tennessee
+# Region V: Illinois, Indiana, Michigan, Minnesota, Ohio, Wisconsin
+# Region VI: Arkansas, Louisiana, New Mexico, Oklahoma, Texas
+# Region VII: Iowa, Kansas, Missouri, Nebraska
+# Region VIII: Colorado, Montana, North Dakota, South Dakota, Utah, Wyoming
+# Region IX: Arizona, California, Hawaii, Nevada, American Samoa, Guam, Northern Mariana Islands
+# Region X: Alaska, Idaho, Oregon, Washington
+```
+
+
+
 # EDA
+1. Does the monthly amount of covid cases affect the rental price over states?
+- Regression: rental~covid_cases
+
 ```{r}
 library(ggplot2)
-ggplot(aes(x=cases, y=average_listing_price), data=data) + 
-  geom_point() + geom_smooth()
 ```
 
 ```{r}
-# ggplot(aes(x=cases, y=average_listing_price, color=county), data=data) + 
-#   geom_point() # would prefer grouping them
+# ggplot(aes(x=date, y=cases), data=data) + 
+#   geom_point() + geom_smooth()
+
+ggplot(aes(x=date, y=cases), data=data) + 
+  geom_point() + geom_smooth() +
+  facet_grid(cols = vars(region)) +
+  theme(axis.text.x=element_text(angle=45))
+```
+
+2. When does the trend of covid start to slow down? 
+   Does monthly housing inventory decrease when the covid cases increase?
+- 
+- 
+```{r}
+data%>%
+  group_by(date,region)%>%
+  summarise(Covid_Cases=mean(cases))%>%
+  ungroup()%>%
+  ggplot(aes(
+    x=date,
+    y=Covid_Cases,
+    colour=region,
+    group=region,
+    shape=region
+    ))+
+  geom_line()+
+  geom_point(size=4)
 ```
 
 ```{r}
-ggplot(aes(x=cases, y=average_listing_price, color=state), data=data) + 
-  geom_point() # would prefer grouping them?
+data%>%
+  group_by(date,region)%>%
+  summarise(mlp=mean(median_listing_price))%>%
+  ungroup()%>%
+  ggplot(aes(
+    x=date,
+    y=mlp,
+    colour=region,
+    group=region,
+    shape=region
+    ))+
+  geom_line()+
+  geom_point(size=4)
+
+data%>%
+  group_by(date,region)%>%
+  summarise(mlp=mean(active_listing_count))%>%
+  ungroup()%>%
+  ggplot(aes(
+    x=date,
+    y=mlp,
+    colour=region,
+    group=region,
+    shape=region
+    ))+
+  geom_line()+
+  geom_point(size=4)
+
 ```
+```{r}
+data%>%
+  group_by(date,region)%>%
+  summarise(Covid_Cases=mean(cases), mlp=mean(median_listing_price))%>%
+  ungroup()%>%
+  ggplot(aes(
+        x = Covid_Cases,
+        y = mlp,
+        col = region
+        )) +
+       geom_point(mapping = aes(size = mlp)) +
+      geom_point(aes(size = Covid_Cases)) +
+      scale_size(range = c(1, 20), guide = FALSE) +
+      scale_x_discrete(aes(label = Covid_Cases)) +
+      scale_color_brewer(palette = "Set3")
+```
+
+3a. Time series for rental price (Year → Month)
+Can the rental price of 2020 be predicted by the former rental price? 
+If not, it seems like covid do influence the rate. 
+We can take the next step to set up regression analysis for rental price prediction.
 
 ```{r}
-ggplot(aes(x=cases, y=average_listing_price, color=state), data=data) + 
-  geom_smooth()
-```
-```{r}
-# normality test
-set.seed(1)
-shapiro.test(sample(data$average_listing_price,5000)) # not normal # need Y transformation
-shapiro.test(sample(data$cases,5000)) # not normal
-```
-
-```{r}
-# correlation test
-cor.test(data$average_listing_price, data$cases) # correlated
-```
-
-
-```{r}
-# model...
 
 ```
+ 
+3b. Regression (rental price prediction)
+-- regression
+-- regression tree
+Then, we would like to know whether covid significantly affects the rental price yearly?
+- yearly_rental_price ~ covid_case(1/0)
+If yes, we could also explore the effect of covid on monthly rental price for the whole U.S.
+- monthly_rental_price ~ covid_case(quant)
+ 
+Then, we want to know if there are any other factors contributing to the monthly rental price 
+for the US and each state.
+- monthly_rental_price ~ population(quant or rank)+covid_case(quant)+covid_death
+- monthly_rental_price ~ state+population(quant or rank)+covid_case(quant)+covid_death
+ 
+3c. Classification:
+We can then divide monthly rental price into two/three levels (high,medium,low), and see 
+how the factors affect the rental price level.
+-- logistic regression
+-- classification tree
+- yearly_rental_price_level ~ covid_case(1/0)
+- monthly_rental_price_level ~ covid_case(quant)
+- monthly_rental_price_level ~ population(quant or rank)+covid_case(quant)+covid_death
+- monthly_rental_price_level ~ state+population(quant or rank)+covid_case(quant)+covid_death
+
+
+
+
+
+
+
 
 
 
