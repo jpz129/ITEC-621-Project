@@ -62,7 +62,7 @@ head(data)
 
 
 # EDA
-1. Does the monthly amount of covid cases affect the listing price over states?
+1a. Does the monthly amount of covid cases affect the listing price over states?
 - It seems that covid case amount might affect the listing price. 
 - We can then build regression model: listing~covid_cases
 
@@ -71,12 +71,27 @@ library(ggplot2)
 ```
 
 ```{r}
-ggplot(aes(x=cases, y=median_listing_price), data=data) + 
+ggplot(aes(x=cases, y=average_listing_price), data=data) + 
   geom_point() + geom_smooth() 
 ```
 
 ```{r}
-ggplot(aes(x=cases, y=median_listing_price), data=data) + 
+ggplot(aes(x=cases, y=average_listing_price), data=data) + 
+  geom_point() + geom_smooth() +
+  facet_grid(rows = vars(region))
+```
+
+1b. Does the monthly amount of death affect the listing price over states?
+- It seems that death amount might affect the listing price. 
+- We can then build regression model: listing_price~death
+
+```{r}
+ggplot(aes(x=deaths, y=average_listing_price), data=data) + 
+  geom_point() + geom_smooth() 
+```
+
+```{r}
+ggplot(aes(x=deaths, y=average_listing_price), data=data) + 
   geom_point() + geom_smooth() +
   facet_grid(rows = vars(region))
 ```
@@ -119,7 +134,7 @@ data%>%
 ```{r}
 data%>%
   group_by(date,region)%>%
-  summarise(mlp=mean(median_listing_price))%>%
+  summarise(mlp=mean(average_listing_price))%>%
   ungroup()%>%
   ggplot(aes(
     x=date,
@@ -149,14 +164,14 @@ data%>%
 ```{r}
 data%>%
   group_by(date,region)%>%
-  summarise(Covid_Cases=mean(cases), mlp=mean(median_listing_price))%>%
+  summarise(Covid_Cases=mean(cases), alp=mean(average_listing_price))%>%
   ungroup()%>%
   ggplot(aes(
         x = Covid_Cases,
-        y = mlp,
+        y = alp,
         col = region
         )) +
-       geom_point(mapping = aes(size = mlp)) +
+       geom_point(mapping = aes(size = alp)) +
       geom_point(aes(size = Covid_Cases)) +
       scale_size(range = c(1, 20), guide = FALSE) +
       scale_x_discrete(aes(label = Covid_Cases)) +
@@ -170,7 +185,7 @@ data%>%
 ```{r}
 data%>%
   group_by(date)%>%
-  summarise(price=mean(median_listing_price))%>%
+  summarise(price=mean(average_listing_price))%>%
   ggplot(aes(
     x=date,
     y=price,
@@ -198,30 +213,73 @@ library(corrplot)
 corrplot(M, method="shade")
 corrplot(M, method="number")
 ```
--- regression
--- regression tree
-Then, we would like to know whether covid significantly affects the listing price yearly?
-- yearly_listing_price ~ covid_case(1/0)
-If yes, we could also explore the effect of covid on monthly listing price for the whole U.S.
-- monthly_listing_price ~ covid_case(quant)
- 
-Then, we want to know if there are any other factors contributing to the monthly listing price 
-for the US and each state.
-- monthly_listing_price ~ population(quant or rank)+covid_case(quant)+covid_death
-- monthly_listing_price ~ state+population(quant or rank)+covid_case(quant)+covid_death
+- Case amount does have significant positive effect on listing price, but it's not that strong.
 ```{r}
-full.lm.fit<-lm(active_listing_count~cases+deaths+county+state+region,data = data)
+lm.fit<-lm(average_listing_price~cases,data = data)
+summary(lm.fit) # has significant influence but really small
+```
+
+- Death amount does have significant positive effect on listing price.
+```{r}
+lm.fit<-lm(average_listing_price~deaths,data = data)
+summary(lm.fit) # has significant influence 
+```
+
+- Throughout the step method, we get the final model as average_listing_price ~ deaths + county + state + region + active_listing_count. The reason why the case variable is removed might be the strong correlation with deaths variable.
+```{r}
+full.lm.fit<-lm(average_listing_price~cases+deaths+county+state+region+active_listing_count,data = data)
 summary(full.lm.fit)
-```
 
+lm.step<-step(full.lm.fit)
+summary(lm.step)
+```
+- Since it's hard to interpret with 51 states and hundreds of counties, we remove county and state in this time.
 ```{r}
-full.lm.fit<-lm(active_listing_count~cases+deaths+county+state+region+average_listing_price,data = data)
+full.lm.fit<-lm(average_listing_price~deaths+region+active_listing_count,data = data)
 summary(full.lm.fit)
+
+lm.step<-step(full.lm.fit)
+summary(lm.step)
 ```
 
+- From the result of reg tree, death is not a factor that could help predict listing price, which means covid does have influence on listing price but the it is not that helpful for prediction. 
 ```{r}
+# Regression Tree Example
+library(rpart)
 
+# grow tree
+fit <- rpart(average_listing_price ~ deaths + 
+    region + active_listing_count,
+   method="anova", data=data)
+
+printcp(fit) # display the results
+plotcp(fit) # visualize cross-validation results
+summary(fit) # detailed summary of splits
+
+# create additional plots
+par(mfrow=c(1,2)) # two plots on one page
+rsq.rpart(fit) # visualize cross-validation results  
+
+# plot tree
+plot(fit, uniform=TRUE)
+text(fit, use.n=TRUE, all=TRUE, cex=.8,
+   main="Regression Tree")
+
+# # create attractive postcript plot of tree
+# post(fit, file = "tree2.ps",
+#    title = "Regression Tree")
+
+# prune the tree
+pfit<- prune(fit, cp=0.01) # from cptable   
+
+# plot the pruned tree
+plot(pfit, uniform=TRUE,
+   main="Pruned Regression Tree")
+text(pfit, use.n=TRUE, all=TRUE, cex=.8)
+# post(pfit, file = "ptree2.ps",
+#    title = "Pruned Regression Tree")
 ```
+
  
 3c. Classification:
 We can then divide monthly listing price into two/three levels (high,medium,low), and see 
@@ -233,7 +291,78 @@ how the factors affect the listing price level.
 - monthly_listing_price_level ~ population(quant or rank)+covid_case(quant)+covid_death
 - monthly_listing_price_level ~ state+population(quant or rank)+covid_case(quant)+covid_death
 
+```{r}
+# use mean to create categorical variable (Mean of average listing price: 440390)
+data$average_listing_price_level <- ifelse(data$average_listing_price > 440390, "1", "0")
+data$average_listing_price_level <- as.factor(data$average_listing_price_level)
 
+log.fit <- glm(average_listing_price_level ~ deaths  + 
+               region + active_listing_count,
+               data=data, family = "binomial")
+summary(log.fit)
+```
+
+```{r}
+set.seed(123)
+n<-nrow(data)
+train<-sample(n,0.8*n)
+log.fit <- glm(average_listing_price_level ~ deaths  + 
+    region + active_listing_count,
+  data=data[train,], family = "binomial")
+summary(log.fit)
+```
+
+- It's a good model with high accuracy.
+```{r}
+library(caret)
+test.x<-data[-train,c(3,9,7)]
+pred.y<-predict(log.fit,test.x)
+pred.y<-ifelse(pred.y > 0.5, "1", "0")
+pred.y<-as.factor(pred.y)
+y<-data[-train,]$average_listing_price_level
+y<-as.factor(y)
+confusionMatrix(pred.y,data[-train,]$average_listing_price_level)
+```
+
+- classification tree
+```{r}
+# Classification Tree with rpart
+library(rpart)
+
+# grow tree
+fit <- rpart(average_listing_price_level ~ deaths  + 
+    region + active_listing_count,
+   method="class", data=data[train,])
+
+printcp(fit) # display the results
+plotcp(fit) # visualize cross-validation results
+summary(fit) # detailed summary of splits
+
+# plot tree
+plot(fit, uniform=TRUE,
+   main="Classification Tree")
+text(fit, use.n=TRUE, all=TRUE, cex=.8)
+
+# # create attractive postscript plot of tree
+# post(fit, file = "Classfication_Tree.ps",
+#    title = "Classification Tree")
+
+# prune the tree
+pfit<- prune(fit, cp=fit$cptable[which.min(fit$cptable[,"xerror"]),"CP"])
+
+# plot the pruned tree
+plot(pfit, uniform=TRUE,
+   main="Pruned Classification Tree ")
+text(pfit, use.n=TRUE, all=TRUE, cex=.8)
+# post(pfit, file = "Purn_Classification_Tree.ps",
+#    title = "Pruned Classification Tree")
+
+ctree.pred.y<-predict(pfit,test.x)
+ctree.pred.y<-as.data.frame(ctree.pred.y)
+ctree.pred.y<-ifelse(ctree.pred.y$`0` > 0.5, "1", "0")
+ctree.pred.y<-as.factor(ctree.pred.y)
+confusionMatrix(ctree.pred.y,y)
+```
 
 
 
