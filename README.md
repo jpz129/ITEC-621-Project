@@ -2,6 +2,8 @@
 
 > Simple repo built for ITEC 621 project. 
 
+Delivrable 2 google doc: https://docs.google.com/document/d/1XTdTYpejjMYebzhQB11MH_vgtA60Ni817nMxnzeh5xY/edit#
+
 ## Team Instructions
 
 1. Clone this repository somewhere on your local machine.  
