@@ -10,7 +10,8 @@ output: pdf_document
 # set up
 library(tidyverse)
 library(dplyr)
-pan.hous <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/project_data.csv")
+
+pan.hous <- read_csv("data/project_data.csv")[,c(2,3,4,5,6,7,8,11,35)]
 pan.hous <- na.omit(pan.hous)
 
 inc <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/Unemployment.csv")
@@ -35,7 +36,7 @@ inc <- inc %>%
 # Join
 
 full <- inc %>%
-  inner_join(pan.hous, by = "county_fips")
+  full_join(pan.hous, by = "county_fips")
 
 ```
 
@@ -66,6 +67,15 @@ write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_
 
 ```
 
+Inspect dimensions/entries and find missing values
+
+```{r dimensions}
+
+length(pan.hous$county_fips)/14
+
+```
+
+
 # Inspect corr plot
 
 ```{r corr}
@@ -75,12 +85,61 @@ full.sm <- full %>%
   group_by(county_fips) %>%
   summarize(Population = mean(POP_ESTIMATE_2019), Median_Income = mean(Median_Household_Income_2019), avg_cases = mean(cases), avg_deaths = mean(deaths), avg_median_listing_price = mean(median_listing_price), avg_active_listing_count = mean(active_listing_count), avg_pending_count = mean(pending_listing_count), avg_median_sqfeet = mean(median_square_feet))
 
+library(corrplot)
+
 full.mat <- as.matrix(full.sm[,-1])
 full.corr <- cor(full.mat)
 
 corrplot(full.corr, method = "ellipse")
 
+# make 3 sections: low, avg, high
+sd(full$median_listing_price)
+
 ```
 
 Mostly did this as a bird's eye view to make sure imported data makes sense. It doesn't tell us much more than what we would expect
+
+```{r boxplot}
+
+length(unique(full$date))
+length(unique(full$county_fips))
+length(unique(full$state))
+
+colSums(is.na(full))
+
+dim(full)
+
+
+
+
+```
+
+Omit na
+
+```{r }
+
+full.complete <- na.omit(full)
+
+# find out which 4 counties are missing 
+
+big.fips <- unique(pan.hous$county_fips)
+small.fips <- unique(full.complete$county_fips)
+
+missing.vect <- big.fips[! big.fips %in% small.fips] 
+
+missing.fips <- pan.hous %>%
+  select(county, state, county_fips) %>%
+  filter(county_fips == missing.vect)
+
+missing.fips
+missing.vect
+
+pan.hous %>%
+  filter(state == "louisiana")
+
+full.complete %>%
+  filter(state == "louisiana")
+  
+
+```
 
