@@ -1,1 +1,68 @@
+---
+title: "analyis_kw"
+author: "Katherine Westcott"
+date: "3/30/2021"
+output: pdf_document
+---
+
+```{r imports} 
+
+# set up
+library(tidyverse)
+library(dplyr)
+pan.hous <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/project_data.csv")
+pan.hous <- na.omit(pan.hous)
+
+inc <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/Unemployment.csv")
+inc <- na.omit(inc)
+
+popb <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/PopulationEstimates.csv")
+
+```
+
+#### Adding county income and population data to project_data.csv
+
+Median income for 2019 from
+
+https://www.ers.usda.gov/data-products/county-level-data-sets/
+
+```{r income}
+
+inc <- inc %>%
+  select(fips_txt, Median_Household_Income_2019, Med_HH_Income_Percent_of_State_Total_2019) %>%
+  rename(county_fips = "fips_txt")
+
+# Join
+
+full <- inc %>%
+  inner_join(pan.hous, by = "county_fips")
+
+```
+
+Population as of 2019 from 
+
+https://www.ers.usda.gov/data-products/county-level-data-sets/
+
+**It would be good to find county land area data so we could use population density**
+
+```{r Population}
+
+# USDA Population estimate for 2019
+popa <- popb %>%
+  select(FIPStxt, POP_ESTIMATE_2019) 
+
+pop <- popa %>%
+  rename(county_fips = "FIPStxt")
+
+pop$county_fips <- sub("^0+", "", pop$county_fips)
+pop$county_fips <- as.double(pop$county_fips)
+
+# Join
+
+full <- pop %>%
+  inner_join(full, by = "county_fips")
+
+write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_pi")
+
+```
 
