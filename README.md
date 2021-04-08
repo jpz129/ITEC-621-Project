@@ -3,6 +3,7 @@
 > Simple repo built for ITEC 621 project. 
 
 Delivrable 2 google doc: https://docs.google.com/document/d/1XTdTYpejjMYebzhQB11MH_vgtA60Ni817nMxnzeh5xY/edit?usp=sharing
+Delivrable 2 appendix google doc: https://docs.google.com/document/d/1JQPwOFLRjUe7vw5FLajbuJ0VkmdNmRqwzqcyMdnPIzk/edit?usp=sharing
 
 ## Team Instructions
 
