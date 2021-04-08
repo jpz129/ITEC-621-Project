@@ -63,7 +63,7 @@ pop$county_fips <- as.double(pop$county_fips)
 full <- pop %>%
   inner_join(full, by = "county_fips")
 
-write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_pi")
+
 
 ```
 
@@ -127,19 +127,22 @@ small.fips <- unique(full.complete$county_fips)
 
 missing.vect <- big.fips[! big.fips %in% small.fips] 
 
-missing.fips <- pan.hous %>%
-  select(county, state, county_fips) %>%
-  filter(county_fips == missing.vect)
+#missing.fips <- pan.hous %>%
+  #select(county, state, county_fips) %>%
+  #filter(county_fips == missing.vect)
 
-missing.fips
+#Missing counties are: jefferson, st. charles, orleans and st. tammany LA
 missing.vect
 
 pan.hous %>%
-  filter(state == "louisiana")
+  filter(county_fips == "22103")
 
-full.complete %>%
-  filter(state == "louisiana")
+#full.complete %>%
+  #filter(state == "louisiana")
   
+write.csv(full.complete, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_pi")
 
 ```
+
+
 
