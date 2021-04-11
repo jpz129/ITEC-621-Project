@@ -63,43 +63,11 @@ pop$county_fips <- as.double(pop$county_fips)
 full <- pop %>%
   inner_join(full, by = "county_fips")
 
-
-
 ```
 
-Inspect dimensions/entries and find missing values
+inspect dimensions and missing values 
 
 ```{r dimensions}
-
-length(pan.hous$county_fips)/14
-
-```
-
-
-# Inspect corr plot
-
-```{r corr}
-
-full.sm <- full %>%
-  select(county_fips, county, state, POP_ESTIMATE_2019, Median_Household_Income_2019, date, cases, deaths, median_listing_price, active_listing_count, pending_listing_count, median_square_feet) %>%
-  group_by(county_fips) %>%
-  summarize(Population = mean(POP_ESTIMATE_2019), Median_Income = mean(Median_Household_Income_2019), avg_cases = mean(cases), avg_deaths = mean(deaths), avg_median_listing_price = mean(median_listing_price), avg_active_listing_count = mean(active_listing_count), avg_pending_count = mean(pending_listing_count), avg_median_sqfeet = mean(median_square_feet))
-
-library(corrplot)
-
-full.mat <- as.matrix(full.sm[,-1])
-full.corr <- cor(full.mat)
-
-corrplot(full.corr, method = "ellipse")
-
-# make 3 sections: low, avg, high
-sd(full$median_listing_price)
-
-```
-
-Mostly did this as a bird's eye view to make sure imported data makes sense. It doesn't tell us much more than what we would expect
-
-```{r boxplot}
 
 length(unique(full$date))
 length(unique(full$county_fips))
@@ -109,27 +77,21 @@ colSums(is.na(full))
 
 dim(full)
 
-
-
-
 ```
 
 Omit na
 
-```{r }
+```{r missing}
 
-full.complete <- na.omit(full)
+full <- na.omit(full)
 
 # find out which 4 counties are missing 
 
 big.fips <- unique(pan.hous$county_fips)
-small.fips <- unique(full.complete$county_fips)
+small.fips <- unique(full$county_fips)
 
 missing.vect <- big.fips[! big.fips %in% small.fips] 
 
-#missing.fips <- pan.hous %>%
-  #select(county, state, county_fips) %>%
-  #filter(county_fips == missing.vect)
 
 #Missing counties are: jefferson, st. charles, orleans and st. tammany LA
 missing.vect
@@ -137,10 +99,146 @@ missing.vect
 pan.hous %>%
   filter(county_fips == "22103")
 
-#full.complete %>%
-  #filter(state == "louisiana")
-  
-write.csv(full.complete, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_pi")
+dim(full)
+
+```
+
+Add land area and make population density 
+
+```{r land imp}
+
+la <- read_csv("data/landarea.csv")[,c(2,4)]
+
+la <- la %>%
+  rename(county_fips = "STCOU") %>%
+  rename(county_land_area = "LND010190D")
+
+la$county_fips <- sub("^0+", "", la$county_fips)
+
+la$county_fips <- as.double(la$county_fips)
+
+head(la)
+head(full)
+
+```
+
+```{r join la}
+
+full <- full %>%
+  left_join(la, by = "county_fips")
+
+full <- full %>%
+  mutate(pop_density_sqmi = (POP_ESTIMATE_2019/county_land_area))
+
+head(full)
+dim(full)
+
+write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_final.csv")
+
+colSums(is.na(full))
+
+```
+
+
+#### Mirroring some of Pei's models with the new predictors 
+
+Add regions
+
+```{r regions}
+
+full$region <- 0
+for (i in 1:nrow(full)) {
+  if (full$state[i] %in% c("connecticut","maine","massachusetts","new hampshire","rhode island", "vermont")) {
+    full$region[i] <- 1
+  } else if (full$state[i] %in% c("new jersey", "new york", "puerto rico")) {
+    full$region[i] <- 2
+  } else if (full$state[i] %in% c("delaware", "district of columbia", "maryland", "pennsylvania", "virginia", "west virginia")) {
+    full$region[i] <- 3
+  } else if (full$state[i] %in% c("alabama", "florida", "georgia", "kentucky", "mississippi", "north carolina", "south carolina", "tennessee")) {
+    full$region[i] <- 4
+  } else if (full$state[i] %in% c("illinois", "indiana", "michigan", "minnesota", "ohio", "wisconsin")) {
+    full$region[i] <- 5
+  } else if (full$state[i] %in% c("arkansas", "louisiana", "new mexico", "oklahoma", "texas")) {
+    full$region[i] <- 6
+  } else if (full$state[i] %in% c("iowa", "kansas", "missouri", "nebraska")) {
+    full$region[i] <- 7
+  } else if (full$state[i] %in% c("colorado", "montana", "north dakota", "south dakota", "utah", "wyoming")) {
+    full$region[i] <- 8
+  } else if (full$state[i] %in% c("arizona", "california", "hawaii", "nevada", "american samoa", "guam", "northern mariana islands")) {
+    full$region[i] <- 9
+  } else if (full$state[i] %in% c( "alaska", "idaho", "oregon", "washington")) {
+    full$region[i] <- 10
+  }
+}
+full$region <- as.factor(full$region)
+
+head(full)
+
+```
+
+Regression: listing price prediction
+
+```{r corr}
+
+full.sm <- full[,c(3,6,7,8,9,10,11,12,14,15)]
+head(full.sm)
+colSums(is.na(full.sm))
+
+library(corrplot)
+
+full.sm$region <- as.numeric(full.sm$region)
+full.sm$state <- as.numeric(as.factor(full.sm$state))
+full.sm$county <- as.numeric(as.factor(full.sm$county))
+full.sm$pop_density_sqmi <- as.numeric(as.factor(full.sm$pop_density_sqmi))
+
+mat <- as.matrix(full.sm)
+corr <- cor(mat)
+
+corrplot(corr, method = "shade")
+corrplot(corr, method = "number", tl.cex = 0.3)
+
+# make 3 sections: low, avg, high
+#sd(full$median_listing_price)
+
+
+```
+
+Simple OLS
+
+```{r ols}
+
+lm.fit <- lm(average_listing_price ~ ., data = full.sm)
+summary(lm.fit)
+
+```
+
+#### Assumption: evenly distributed residuals
+
+```{r bp test}
+
+library(lmtest)
+bptest(lm.fit)
+
+plot(lm.fit, which = 1)
+
+```
+
+There is certainly heteroskedasticity in this model.
+
+Fit a wls
+
+```{r wls}
+
+abs.res <- abs(residuals(lm.fit))
+lm.preds <- fitted(lm.fit)
+lm.abs.res <- lm(abs.res ~ lm.preds)
+
+head(fitted(lm.abs.res), n = 10)
+
+wts <- 1/fitted(lm.abs.res)^2
+
+wls.fit <- lm(average_listing_price ~ ., data = full.sm, weights = wts)
+summary(wls.fit)
 
 ```
 
