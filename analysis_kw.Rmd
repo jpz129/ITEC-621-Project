@@ -170,7 +170,8 @@ tolow <- function(x) {
 reg$State <- tolow(reg$State)
 
 regs <- reg %>%
-  rename(state = "State")
+  rename(state = "State") %>%
+  select(!`State Code`)
 
 full<- full %>%
   left_join(regs, by = "state")
@@ -194,41 +195,16 @@ Divisions:
 8 = West North Central
 9 = West South Central
 
-```{r corr}
-
-full.sm <- full[,c(3,6,7,8,9,10,11,12,14,18)]
-head(full.sm)
-colSums(is.na(full.sm))
-
-library(corrplot)
-
-#full.sm$Region <- as.numeric(as.factor(full.sm$Region))
-full.sm$state <- as.numeric(as.factor(full.sm$state))
-full.sm$county <- as.numeric(as.factor(full.sm$county))
-full.sm$pop_density_sqmi <- as.numeric(as.factor(full.sm$pop_density_sqmi))
-full.sm$Division <- as.numeric(as.factor(full.sm$Division))
-
-mat <- as.matrix(full.sm)
-corr <- cor(mat)
-
-corrplot(corr, method = "shade")
-corrplot(corr, method = "number", tl.cex = 0.3)
-
-# make 3 sections: low, avg, high
-#sd(full$median_listing_price)
-
-
-```
-
 ### Descriptive plots, etc
 
 median of the median house price across each division, plotted against date. Dot sizes represent the mean number of cases per capita across that division. 
+
 
 ```{r Cases by division}
 
 div_avg <- full %>%
   group_by(Division, date) %>%
-  summarize(div_avg_cases_pc = mean(cases_per_100), date = date, div_median_listing_price = median(median_listing_price))
+  summarize(div_avg_cases_pc = mean(cases_per_1000), date = date, div_median_listing_price = median(median_listing_price))
 
 ggplot(data = div_avg) +
   geom_point(mapping = aes(x = date, y = div_median_listing_price, color = Division, size = div_avg_cases_pc), se = FALSE) +
@@ -238,18 +214,39 @@ ggplot(data = div_avg) +
 
 ```
 
+## Predictive Analysis section
 
+```{r corr}
 
+full.m <- full[,c(3,4,9,8,10,11,13,14,16,17,18)]
+head(full.m)
+colSums(is.na(full.m))
 
+library(corrplot)
 
+full.m$Region <- as.numeric(as.factor(full.m$Region))
+full.m$state <- as.numeric(as.factor(full.m$state))
+full.m$county <- as.numeric(as.factor(full.m$county))
+full.m$pop_density_sqmi <- as.numeric(as.factor(full.m$pop_density_sqmi))
+full.m$Division <- as.numeric(as.factor(full.m$Division))
 
+mat <- as.matrix(full.m)
+corr <- cor(mat)
+
+corrplot(corr, method = "shade")
+corrplot(corr, method = "number", tl.cex = 0.3)
+
+# make 3 sections: low, avg, high
+#sd(full$median_listing_price)
+
+```
 
 
 ### Simple OLS
 
 ```{r ols}
 
-lm.fit <- lm(average_listing_price ~ ., data = full.sm)
+lm.fit <- lm(median_listing_price ~ ., data = full.m)
 summary(lm.fit)
 
 ```
@@ -279,7 +276,7 @@ head(fitted(lm.abs.res), n = 10)
 
 wts <- 1/fitted(lm.abs.res)^2
 
-wls.fit <- lm(average_listing_price ~ ., data = full.sm, weights = wts)
+wls.fit <- lm(median_listing_price ~ ., data = full.m, weights = wts)
 summary(wls.fit)
 
 ```
@@ -294,11 +291,10 @@ library(lmtest)
 
 dwtest(lm.fit)
 
-plot(full.sm$Median_Household_Income_2019, lm.fit$residuals)
 
 ```
 
-DW = 0.323 << 2 --> High positive serial correlation
+DW = 0.142 << 2 --> High positive serial correlation
 
 ### Assumption: predictors independent 
 
