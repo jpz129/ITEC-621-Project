@@ -10,6 +10,7 @@ output: pdf_document
 # set up
 library(tidyverse)
 library(dplyr)
+library(ggplot2)
 
 pan.hous <- read_csv("data/project_data.csv")[,c(2,3,4,5,6,7,8,11,35)]
 pan.hous <- na.omit(pan.hous)
@@ -64,6 +65,20 @@ full <- pop %>%
   inner_join(full, by = "county_fips")
 
 ```
+
+
+Cases and deaths per 100 people 
+
+```{r cd per hundred}
+
+# Create cases and deaths per capita
+
+full <- full %>%
+  mutate(cases_per_1000 = (cases/(POP_ESTIMATE_2019/1000))) %>%
+  mutate(deaths_per_1000 = (deaths/(POP_ESTIMATE_2019/1000)))
+
+```
+
 
 inspect dimensions and missing values 
 
@@ -142,54 +157,56 @@ colSums(is.na(full))
 
 #### Mirroring some of Pei's models with the new predictors 
 
-Add regions
 
 ```{r regions}
 
-full$region <- 0
-for (i in 1:nrow(full)) {
-  if (full$state[i] %in% c("connecticut","maine","massachusetts","new hampshire","rhode island", "vermont")) {
-    full$region[i] <- 1
-  } else if (full$state[i] %in% c("new jersey", "new york", "puerto rico")) {
-    full$region[i] <- 2
-  } else if (full$state[i] %in% c("delaware", "district of columbia", "maryland", "pennsylvania", "virginia", "west virginia")) {
-    full$region[i] <- 3
-  } else if (full$state[i] %in% c("alabama", "florida", "georgia", "kentucky", "mississippi", "north carolina", "south carolina", "tennessee")) {
-    full$region[i] <- 4
-  } else if (full$state[i] %in% c("illinois", "indiana", "michigan", "minnesota", "ohio", "wisconsin")) {
-    full$region[i] <- 5
-  } else if (full$state[i] %in% c("arkansas", "louisiana", "new mexico", "oklahoma", "texas")) {
-    full$region[i] <- 6
-  } else if (full$state[i] %in% c("iowa", "kansas", "missouri", "nebraska")) {
-    full$region[i] <- 7
-  } else if (full$state[i] %in% c("colorado", "montana", "north dakota", "south dakota", "utah", "wyoming")) {
-    full$region[i] <- 8
-  } else if (full$state[i] %in% c("arizona", "california", "hawaii", "nevada", "american samoa", "guam", "northern mariana islands")) {
-    full$region[i] <- 9
-  } else if (full$state[i] %in% c( "alaska", "idaho", "oregon", "washington")) {
-    full$region[i] <- 10
-  }
-}
-full$region <- as.factor(full$region)
+reg <- read_csv("https://raw.githubusercontent.com/kwestcott10/stat612.beeproject/main/regions.csv")
 
-head(full)
+tolow <- function(x) {
+  substr(x, 1, 1) <- tolower(substr(x, 1, 1))
+  x
+}
+
+reg$State <- tolow(reg$State)
+
+regs <- reg %>%
+  rename(state = "State")
+
+full<- full %>%
+  left_join(regs, by = "state")
 
 ```
 
-Regression: listing price prediction
+Regions:
+1 = Midwest
+2 = Northeast
+3 = South
+4 = West
+
+Divisions:
+1 = East North Central
+2 = East South Central
+3 = Middle Atlantic
+4 = Mountain
+5 = New England
+6 = Pacific
+7 = South Atlantic
+8 = West North Central
+9 = West South Central
 
 ```{r corr}
 
-full.sm <- full[,c(3,6,7,8,9,10,11,12,14,15)]
+full.sm <- full[,c(3,6,7,8,9,10,11,12,14,18)]
 head(full.sm)
 colSums(is.na(full.sm))
 
 library(corrplot)
 
-full.sm$region <- as.numeric(full.sm$region)
+#full.sm$Region <- as.numeric(as.factor(full.sm$Region))
 full.sm$state <- as.numeric(as.factor(full.sm$state))
 full.sm$county <- as.numeric(as.factor(full.sm$county))
 full.sm$pop_density_sqmi <- as.numeric(as.factor(full.sm$pop_density_sqmi))
+full.sm$Division <- as.numeric(as.factor(full.sm$Division))
 
 mat <- as.matrix(full.sm)
 corr <- cor(mat)
@@ -203,7 +220,32 @@ corrplot(corr, method = "number", tl.cex = 0.3)
 
 ```
 
-Simple OLS
+### Descriptive plots, etc
+
+median of the median house price across each division, plotted against date. Dot sizes represent the mean number of cases per capita across that division. 
+
+```{r Cases by division}
+
+div_avg <- full %>%
+  group_by(Division, date) %>%
+  summarize(div_avg_cases_pc = mean(cases_per_100), date = date, div_median_listing_price = median(median_listing_price))
+
+ggplot(data = div_avg) +
+  geom_point(mapping = aes(x = date, y = div_median_listing_price, color = Division, size = div_avg_cases_pc), se = FALSE) +
+  scale_size_continuous(range = c(1,8))
+  theme_minimal()
+
+
+```
+
+
+
+
+
+
+
+
+### Simple OLS
 
 ```{r ols}
 
@@ -212,7 +254,7 @@ summary(lm.fit)
 
 ```
 
-#### Assumption: evenly distributed residuals
+### Assumption: evenly distributed residuals
 
 ```{r bp test}
 
@@ -241,6 +283,25 @@ wls.fit <- lm(average_listing_price ~ ., data = full.sm, weights = wts)
 summary(wls.fit)
 
 ```
+
+#### Check for serial correlation
+
+**does this test hold without the date variable?**
+
+```{r dw}
+
+library(lmtest)
+
+dwtest(lm.fit)
+
+plot(full.sm$Median_Household_Income_2019, lm.fit$residuals)
+
+```
+
+DW = 0.323 << 2 --> High positive serial correlation
+
+### Assumption: predictors independent 
+
 
 
 
