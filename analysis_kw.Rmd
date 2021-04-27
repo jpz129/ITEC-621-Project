@@ -12,8 +12,8 @@ library(tidyverse)
 library(dplyr)
 library(ggplot2)
 
-pan.hous <- read_csv("data/project_data.csv")[,c(2,3,4,5,6,7,8,11,35)]
-pan.hous <- na.omit(pan.hous)
+proj.data.orig <- read_csv("data/fixed_project_data.csv")[,c(1,2,3,4,5,8,11,14,17,20,23,26,29,32,35,41,42)]
+proj.data.orig <- na.omit(proj.data.orig)
 
 inc <- read_csv("/Users/kw/Desktop/Project/ITEC-621-Project/data/Unemployment.csv")
 inc <- na.omit(inc)
@@ -37,7 +37,7 @@ inc <- inc %>%
 # Join
 
 full <- inc %>%
-  full_join(pan.hous, by = "county_fips")
+  full_join(proj.data.orig, by = "county_fips")
 
 ```
 
@@ -102,7 +102,7 @@ full <- na.omit(full)
 
 # find out which 4 counties are missing 
 
-big.fips <- unique(pan.hous$county_fips)
+big.fips <- unique(proj.data.orig$county_fips)
 small.fips <- unique(full$county_fips)
 
 missing.vect <- big.fips[! big.fips %in% small.fips] 
@@ -111,7 +111,7 @@ missing.vect <- big.fips[! big.fips %in% small.fips]
 #Missing counties are: jefferson, st. charles, orleans and st. tammany LA
 missing.vect
 
-pan.hous %>%
+proj.data.orig %>%
   filter(county_fips == "22103")
 
 dim(full)
@@ -148,7 +148,7 @@ full <- full %>%
 head(full)
 dim(full)
 
-write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_final.csv")
+
 
 colSums(is.na(full))
 
@@ -176,6 +176,8 @@ regs <- reg %>%
 full<- full %>%
   left_join(regs, by = "state")
 
+write.csv(full, file = "/Users/kw/Desktop/Project/ITEC-621-Project/data/Project_Data_final.csv")
+
 ```
 
 Regions:
@@ -194,6 +196,9 @@ Divisions:
 7 = South Atlantic
 8 = West North Central
 9 = West South Central
+
+
+### FULL DATASET = "Project_Data_final.csv", called "full" in this file.
 
 ### Descriptive plots, etc
 
