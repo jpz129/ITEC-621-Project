@@ -30,7 +30,7 @@ head(data)
 
 ```{r}
 # data$Region <- as.numeric(as.factor(data$Region))
-data$Division <- as.numeric(as.factor(data$Division))
+data$Division_num <- as.numeric(as.factor(data$Division))
 # Regions:
 # 1 = Midwest
 # 2 = Northeast
@@ -48,7 +48,7 @@ data$Division <- as.numeric(as.factor(data$Division))
 # 8 = West North Central
 # 9 = West South Central
 
-X<-data[,-3] # remove date (non-numeric)
+X<-data[,-c(3,10)] # remove date (non-numeric)
 names(X)
 M<-cor(X)
 library(corrplot)
@@ -56,17 +56,18 @@ corrplot(M, method="ellipse", tl.cex = 0.3)
 corrplot(M, method="number", tl.cex=.8,number.cex=.8,tl.srt=30)
 ```
 ```{r}
-plot(data$median_listing_price~.,data=data)
+plot(data$median_listing_price~.,data=X)
 ```
 ## log transform
 ```{r}
 names(data)
-data[,-c(3,10)] %>% 
+data[,-c(3,10,11)] %>% 
   mutate_at(1:8, list(log = ~ log(.))) ->
   data_log
-data_log <- as.data.frame(Map(function(x) replace(x, is.infinite(x), NA), data_log))
+data_log <- as.data.frame(Map(function(x) replace(x, is.infinite(x), 0), data_log))
 data_log <- data_log[,c(9:16)]# only include the logged variables
 data_log <- cbind('date'=data$date,'Division'=data$Division,data_log)
+# data_log <- cbind('Division'=data$Division,data_log)
 data_log <- na.omit(data_log)
 names(data_log)
 data_log$Division <- as.factor(data_log$Division)
@@ -82,37 +83,34 @@ ggpairs(data_log,lower = list(continuous = wrap("points", alpha = 0.05))) # some
 ## Regression
 ```{r}
 lm.fit<-lm(median_listing_price_log~.,data=data_log)
-summary(lm.fit) # why pop_density_sqmi_log NA????
+summary(lm.fit) # pop_density_sqmi_log NA due to strong collinearity # high R2
 ```
-seems to keep all var so far
 
-## classification regression
+
+## logistic regression
 ```{r}
-data_log$median_listing_price_log_clas <- data_log$median_listing_price_log
-# data_log$median_listing_price_log <- data_log$median_listing_price_log
-mlp_log_mean <- mean(data_log$median_listing_price_log_clas)
-mlp_log_std <- sd(data_log$median_listing_price_log_clas)
-ifelse(data_log$median_listing_price_log_clas > mlp_log_mean+mlp_log_std, "High",
-       ifelse(data_log$median_listing_price_log_clas > mlp_log_mean+mlp_log_std,"Low","Median")) ->
-  data_log$median_listing_price_log_clas
-data_log$median_listing_price_log_clas <- as.numeric(as.factor(data_log$median_listing_price_log_clas))
+data_log$median_listing_price_clas <- data$median_listing_price
+mlp_mean <- mean(data_log$median_listing_price_clas)
+mlp_std <- sd(data_log$median_listing_price_clas)
+ifelse(data_log$median_listing_price_clas > mlp_mean+mlp_std, "High",
+       ifelse(data_log$median_listing_price_clas < mlp_mean-mlp_std,"Low","Median")) ->
+  data_log$median_listing_price_clas
+data_log$median_listing_price_clas <- as.numeric(as.factor(data_log$median_listing_price_clas))
 head(data_log)
 
-lm.clas.fit<-lm(median_listing_price_log_clas~.-median_listing_price_log,data=data_log)
-summary(lm.clas.fit)
-```
-seems regression is better
-
-## 80/20 split
-```{r}
-
+lm.clas.fit<-lm(median_listing_price_clas~.-median_listing_price_log,data=data_log)
+summary(lm.clas.fit) # pop_density_sqmi_log NA due to strong collinearity # low R2
+logit.fit <- glm(median_listing_price_clas~.-median_listing_price_log,data=data_log)
+summary(logit.fit)
 ```
 
 
 ## Ridge/LASSO
 ```{r}
 library(glmnet)
-x <- model.matrix(median_listing_price_log~.,data = data_log)[,-1]
+set.seed(1)
+names(train_data)
+x <- model.matrix(median_listing_price_log~.-median_listing_price_clas,data = data_log)[,-1]
 y <- data_log$median_listing_price_log 
 lasso <- glmnet(x, y, alpha=1) 
 set.seed(1)
@@ -126,10 +124,24 @@ lasso.coef <- coef(lasso, s=lasso.best.lambda)
 lasso.coef
 ```
 
+remove case and pop_dens
+final predictors: date, Division, POP_ESTIMATE_2019_log, Median_Household_Income_2019_log, total_listing_count_log, deaths_per_1000_log, county_land_area_log
+
+```{r}
+final.reg <- lm(median_listing_price_log ~ date + Division + POP_ESTIMATE_2019_log + Median_Household_Income_2019_log + total_listing_count_log + deaths_per_1000_log + county_land_area_log, data=data_log)
+summary(final.reg)
+```
 
 
-
-
+## 80/20 split
+```{r}
+set.seed(123)
+train <- sample(nrow(data_log),0.8*nrow(data_log))
+train_data <- data_log[train,]
+test_data <- data_log[-train,]
+nrow(train_data)
+nrow(test_data)
+```
 
 
 
