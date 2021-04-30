@@ -11,6 +11,7 @@ output: pdf_document
 library(tidyverse)
 library(dplyr)
 library(ggplot2)
+library(glmnet) # Contains functions for Ridge and LASSO
 
 proj.data.orig <- read_csv("data/fixed_project_data.csv")[,c(1,2,3,4,5,8,11,14,17,20,23,26,29,32,35,41,42)]
 proj.data.orig <- na.omit(proj.data.orig)
@@ -94,34 +95,13 @@ dim(full)
 
 ```
 
-Omit na
 
-```{r missing}
-
-full <- na.omit(full)
-
-# find out which 4 counties are missing 
-
-big.fips <- unique(proj.data.orig$county_fips)
-small.fips <- unique(full$county_fips)
-
-missing.vect <- big.fips[! big.fips %in% small.fips] 
-
-
-#Missing counties are: jefferson, st. charles, orleans and st. tammany LA
-missing.vect
-
-proj.data.orig %>%
-  filter(county_fips == "22103")
-
-dim(full)
-
-```
 
 Add land area and make population density 
 
 ```{r land imp}
 
+full <- na.omit(full)
 la <- read_csv("data/landarea.csv")[,c(2,4)]
 
 la <- la %>%
@@ -149,13 +129,9 @@ head(full)
 dim(full)
 
 
-
 colSums(is.na(full))
 
 ```
-
-
-#### Mirroring some of Pei's models with the new predictors 
 
 
 ```{r regions}
@@ -209,54 +185,30 @@ median of the median house price across each division, plotted against date. Dot
 
 div_avg <- full %>%
   group_by(Division, date) %>%
-  summarize(div_avg_cases_pc = mean(cases_per_1000), date = date, div_median_listing_price = median(median_listing_price))
+  summarize(div_avg_cases_per_1000 = mean(cases_per_1000), date = date, div_median_listing_price = median(median_listing_price))
 
 ggplot(data = div_avg) +
-  geom_point(mapping = aes(x = date, y = div_median_listing_price, color = Division, size = div_avg_cases_pc), se = FALSE) +
+  geom_point(mapping = aes(x = date, y = div_median_listing_price, color = Division, size = div_avg_cases_per_1000), se = FALSE) +
   scale_size_continuous(range = c(1,8))
   theme_minimal()
-
 
 ```
 
 ## Predictive Analysis section
 
-```{r corr}
-
-full.m <- full[,c(3,4,9,8,10,11,13,14,16,17,18)]
-head(full.m)
-colSums(is.na(full.m))
-
-library(corrplot)
-
-full.m$Region <- as.numeric(as.factor(full.m$Region))
-full.m$state <- as.numeric(as.factor(full.m$state))
-full.m$county <- as.numeric(as.factor(full.m$county))
-full.m$pop_density_sqmi <- as.numeric(as.factor(full.m$pop_density_sqmi))
-full.m$Division <- as.numeric(as.factor(full.m$Division))
-
-mat <- as.matrix(full.m)
-corr <- cor(mat)
-
-corrplot(corr, method = "shade")
-corrplot(corr, method = "number", tl.cex = 0.3)
-
-# make 3 sections: low, avg, high
-#sd(full$median_listing_price)
-
-```
-
-
 ### Simple OLS
 
 ```{r ols}
 
-lm.fit <- lm(median_listing_price ~ ., data = full.m)
+lm.fit <- lm(median_listing_price_log ~ ., data = data_log)
 summary(lm.fit)
 
 ```
 
+
 ### Assumption: evenly distributed residuals
+
+#### Check for heteroskedasticity
 
 ```{r bp test}
 
@@ -267,24 +219,7 @@ plot(lm.fit, which = 1)
 
 ```
 
-There is certainly heteroskedasticity in this model.
-
-Fit a wls
-
-```{r wls}
-
-abs.res <- abs(residuals(lm.fit))
-lm.preds <- fitted(lm.fit)
-lm.abs.res <- lm(abs.res ~ lm.preds)
-
-head(fitted(lm.abs.res), n = 10)
-
-wts <- 1/fitted(lm.abs.res)^2
-
-wls.fit <- lm(median_listing_price ~ ., data = full.m, weights = wts)
-summary(wls.fit)
-
-```
+This looks good 
 
 #### Check for serial correlation
 
@@ -296,13 +231,106 @@ library(lmtest)
 
 dwtest(lm.fit)
 
+```
+DW = 0.178 << 2 --> High positive serial correlation
+
+
+
+```{r}
+#data_log$date <- as.character(data_log$date)
+#data_log$date <- parse_date(data_log$date, format = "%Y-%M-%d")
+```
+
+### KNN
+
+```{r knn}
+
+library(FNN)
+
+#Can I do knn with Division and date?
+data_log_knn <- data_log[,c(3,4,6,8,9,11)]
+as.data.frame(data_log_knn)
+
+#Should set.seed again? or not  
+set.seed(123)
+train <- sample(nrow(data_log_knn),0.8*nrow(data_log_knn))
+
+data_train <- data_log_knn[train,-6]
+data_train_results <- data_log_knn[train,6]
+
+data_test <- data_log_knn[-train,-6]
+data_test_results <- data_log_knn[-train,6]
+
+knn.mod <- knn(data_train, data_test, data_train_results, k=3)
+
+```
+```{r best k}
+
+# Check to see if there is a better k
+best.k <- -1
+error.rate <- -1
+best.error.rate <- 99999999
+for (i in 3:100) {
+  knn.mod <- knn(data_train, data_test, data_train_results, k = i)
+  error.rate <- 1-(sum(knn.mod == data_test_results) / length(data_test_results))
+  if (error.rate < best.error.rate) {
+    best.k <- i
+    best.error.rate <- error.rate
+  }
+}
+print(paste("The optimal value of k is",best.k,"with an overall error rate of",best.error.rate))
+```
+
+```{r knn results}
+
+accuracy <- sum(knn.mod == data_test_results) / length(data_test_results)
+
+print(paste("the knn for classification accuracy is",(accuracy*100),"%"))
+
+conf.mat <- table(knn.mod, data_test_results)
+
+conf.mat
 
 ```
 
-DW = 0.142 << 2 --> High positive serial correlation
+Pretty good!
 
-### Assumption: predictors independent 
+```{r more stats}
 
+TruH <- conf.mat[1,1] # True highs
+TruM <- conf.mat[2,2] # True meds
+TruL <- conf.mat[3,3] # True lows
+ 
+FalH <- sum(conf.mat[1,2:3])
+FalM <- sum(conf.mat[2,1], conf.mat[2,3])
+FalL <- sum(conf.mat[3,1:2])
 
+TotH <- sum(conf.mat[1,])
+TotM <- sum(conf.mat[2,])
+TotL <- sum(conf.mat[3,])
+Tot = TotH + TotM + TotL
 
+Error.Rate <- (FalH + FalM + FalL) / Tot
+Error.Rate # Check it out
+
+Accuracy.Rate <- (TruH + TruM + TruL) / Tot
+Accuracy.Rate # Same as the proportion calculated above 
+
+# Proportion of correct "Highs"
+HProp <- TruH / TotH
+# Proportion of correct "Mediums"
+MProp <- TruM / TotM
+# Proportion of correct "Lows"
+LProp <- TruL / TotL
+
+# Should I break it up into smaller matrices and find sensitivity and specificity? 
+
+knn.stats <- c(Accuracy.Rate, Error.Rate, HProp, MProp, LProp)
+
+names(knn.stats) <- 
+    c("Accuracy Rate", "Error Rate", "Prop of Correct Highs", "Prop of Correct Mediums", "Prop of Correct Lows")
+
+knn.stats
+
+```
 
