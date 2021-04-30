@@ -1,0 +1,274 @@
+---
+title: "EDA"
+author: "Pei-Hsin Lin"
+date: "3/30/2021"
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+
+# Load & clean data
+```{r}
+data <- read_csv("data/Project_Data_final.csv")
+data <- na.omit(data) # remove data row w/ NA
+inf <- data$X1[is.infinite(data$pop_density_sqmi)]
+data <- data[-inf,]
+nrow(data)
+names(data)
+
+data <- data[,c(3,4,6,9,19,22,23,24,25,27)] # remove redundant variables
+# unique(data$Region) 
+unique(data$Division) 
+head(data)
+```
+
+
+# EDA
+
+```{r}
+# data$Region <- as.numeric(as.factor(data$Region))
+data$Division_num <- as.numeric(as.factor(data$Division))
+# Regions:
+# 1 = Midwest
+# 2 = Northeast
+# 3 = South
+# 4 = West
+# 
+# Divisions:
+# 1 = East North Central
+# 2 = East South Central
+# 3 = Middle Atlantic
+# 4 = Mountain
+# 5 = New England
+# 6 = Pacific
+# 7 = South Atlantic
+# 8 = West North Central
+# 9 = West South Central
+
+X<-data[,-c(3,10)] # remove date (non-numeric)
+names(X)
+M<-cor(X)
+library(corrplot)
+corrplot(M, method="ellipse", tl.cex = 0.3)
+corrplot(M, method="number", tl.cex=.8,number.cex=.8,tl.srt=30)
+```
+```{r}
+hist(data$median_listing_price)
+par(mfrow=c(2,2))
+plot(data$median_listing_price~.,data=X)
+```
+
+
+```{r}
+par(mfcol=c(4,2))
+hist(data$median_listing_price,col="red",main="median_listing_price",xlab = NULL)
+hist(data$total_listing_count,col="green",main="total_listing_count",xlab = NULL)
+hist(data$POP_ESTIMATE_2019,col="blue",main="POP_ESTIMATE_2019",xlab = NULL)
+hist(data$cases_per_1000,col="pink",main="cases_per_1000",xlab = NULL)
+hist(data$deaths_per_1000,col = 'purple',main = 'deaths_per_1000',xlab = NULL)
+hist(data$county_land_area,col='grey',main='county_land_area',xlab = NULL)
+hist(data$pop_density_sqmi,col='brown',main='county_land_area',xlab = NULL)
+hist(data$Median_Household_Income_2019,col='orange',main='Median_Household_Income_2019',xlab = NULL)
+```
+
+
+```{r message=F}
+ggpairs(data,lower = list(continuous = wrap("points", alpha = 0.05)))
+```
+
+## log transform
+```{r}
+names(data)
+data[,-c(3,10)] %>% 
+  mutate_at(1:8, list(log = ~ log(.))) ->
+  data_log
+data_log <- as.data.frame(Map(function(x) replace(x, is.infinite(x), 0), data_log))
+data_log <- data_log[,c(9:16)]# only include the logged variables
+data_log <- cbind('date'=data$date,'Division'=data$Division,data_log)
+# data_log <- cbind('Division'=data$Division,data_log)
+data_log <- na.omit(data_log)
+names(data_log)
+data_log$Division <- as.factor(data_log$Division)
+```
+
+## pairplot
+```{r message=F}
+library(GGally)
+ggpairs(data_log,lower = list(continuous = wrap("points", alpha = 0.05))) # some still skewed..
+```
+
+```{r}
+par(mfcol=c(4,2))
+hist(data_log$median_listing_price,col="red",main="median_listing_price",xlab = NULL)
+hist(data_log$total_listing_count,col="green",main="total_listing_count",xlab = NULL)
+hist(data_log$POP_ESTIMATE_2019,col="blue",main="POP_ESTIMATE_2019",xlab = NULL)
+hist(data_log$cases_per_1000,col="pink",main="cases_per_1000",xlab = NULL)
+hist(data_log$deaths_per_1000,col = 'purple',main = 'deaths_per_1000',xlab = NULL)
+hist(data_log$county_land_area,col='grey',main='county_land_area',xlab = NULL)
+hist(data_log$pop_density_sqmi,col='brown',main='county_land_area',xlab = NULL)
+hist(data_log$Median_Household_Income_2019,col='orange',main='Median_Household_Income_2019',xlab = NULL)
+```
+
+
+# Model
+## COVID effect on listing price
+```{r}
+lm.covid.fit<-lm(median_listing_price_log~cases_per_1000_log,data=data_log)
+summary(lm.covid.fit)
+lm.covid.fit2<-lm(median_listing_price_log~deaths_per_1000_log,data=data_log)
+summary(lm.covid.fit2)
+
+lm.covid.fit3<-multinom(median_listing_price_clas~cases_per_1000_log,data=data_log)
+summary(lm.covid.fit3)
+lm.covid.fit4<-multinom(median_listing_price_clas~deaths_per_1000_log,data=data_log)
+summary(lm.covid.fit4)
+```
+
+```{r}
+library(lmtest)
+
+par(mfcol=c(2,2))
+bptest(lm.covid.fit)
+plot(lm.covid.fit, which = 1)
+
+bptest(lm.covid.fit2)
+plot(lm.covid.fit2, which = 1)
+
+bptest(lm.covid.fit3)
+plot(lm.covid.fit3, which = 1)
+
+bptest(lm.covid.fit4)
+plot(lm.covid.fit4, which = 1)
+```
+
+
+## Regression
+```{r}
+lm.fit<-lm(median_listing_price_log~.,data=data_log)
+summary(lm.fit) # pop_density_sqmi_log NA due to strong collinearity # high R2
+```
+
+
+## logistic regression
+```{r}
+data_log$median_listing_price_clas <- data$median_listing_price
+mlp_mean <- mean(data_log$median_listing_price_clas)
+mlp_std <- sd(data_log$median_listing_price_clas)
+ifelse(data_log$median_listing_price_clas > mlp_mean+mlp_std, "High",
+       ifelse(data_log$median_listing_price_clas < mlp_mean-mlp_std,"Low","Median")) ->
+  data_log$median_listing_price_clas
+data_log$median_listing_price_clas <- as.numeric(as.factor(data_log$median_listing_price_clas))
+head(data_log)
+
+library(nnet)
+multi_log.fit <- multinom(median_listing_price_clas~.-median_listing_price_log,data=data_log)
+summary(multi_log.fit)
+```
+
+
+## Ridge/LASSO
+```{r}
+library(glmnet)
+set.seed(1)
+names(train_data)
+x <- model.matrix(median_listing_price_log~.-median_listing_price_clas,data = data_log)[,-1]
+y <- data_log$median_listing_price_log 
+lasso <- glmnet(x, y, alpha=1) 
+set.seed(1)
+lasso.cv.10Fold <- cv.glmnet(x,y,alpha=1) 
+lasso.best.lambda <- lasso.cv.10Fold$lambda.min 
+lasso.min.mse <- min(lasso.cv.10Fold$cvm)
+cbind("Best Lambda"=lasso.best.lambda, 
+      "Log(Lambda)"=log(lasso.best.lambda), 
+      "Best 10FCV MSE" = lasso.min.mse)
+lasso.coef <- coef(lasso, s=lasso.best.lambda) 
+lasso.coef
+```
+
+remove case and pop_dens
+final predictors: date, Division, POP_ESTIMATE_2019_log, Median_Household_Income_2019_log, total_listing_count_log, deaths_per_1000_log, county_land_area_log
+
+## final reg
+```{r}
+reg.final <- lm(median_listing_price_log ~ date + Division + POP_ESTIMATE_2019_log + 
+                  Median_Household_Income_2019_log + total_listing_count_log + 
+                  deaths_per_1000_log + county_land_area_log, data=data_log)
+summary(reg.final)
+```
+
+```{r}
+library(nnet)
+multi_log.final <- multinom(median_listing_price_clas ~ date + Division + POP_ESTIMATE_2019_log + 
+                              Median_Household_Income_2019_log + total_listing_count_log + 
+                              deaths_per_1000_log + county_land_area_log, data=data_log)
+summary(multi_log.final)
+```
+
+
+## 80/20 split
+```{r}
+set.seed(123)
+train <- sample(nrow(data_log),0.8*nrow(data_log))
+train_data <- data_log[train,-c(7,10)]
+test_data <- data_log[-train,-c(7,10)]
+nrow(train_data)
+nrow(test_data)
+names(train_data)
+```
+## train/test regression
+```{r}
+reg.train <- lm(median_listing_price_log ~ date + Division + POP_ESTIMATE_2019_log +
+                  Median_Household_Income_2019_log + total_listing_count_log + 
+                  deaths_per_1000_log + county_land_area_log, data=train_data)
+```
+
+### Accuracy of Train data
+```{r}
+pred_train <- predict(reg.final,train_data)
+RMSE_train <- sqrt(sum((pred_train-train_data$median_listing_price_log)^2)/nrow(train_data))
+RMSE_train
+```
+
+### Accuracy of Test data  
+```{r}
+pred_test <- predict(reg.final,test_data)
+RMSE_test <- sqrt(sum((pred_test-test_data$median_listing_price_log)^2)/nrow(test_data))
+RMSE_test
+```
+
+## train/test logistic
+### Table of Coefficient,standard error, z statand, p value for Probability
+```{r}
+multi_log.train <- multinom(median_listing_price_clas ~ date + Division + POP_ESTIMATE_2019_log + 
+                              Median_Household_Income_2019_log + total_listing_count_log + 
+                              deaths_per_1000_log + county_land_area_log, data=train_data)
+muti_log.output <- summary(multi_log.train)
+z <- muti_log.output$coefficients/muti_log.output$standard.errors
+p <- (1-pnorm(abs(z),0,1))*2
+Pquality <- rbind(muti_log.output$coefficients[2, ],muti_log.output$standard.errors[2, ],z[2, ],p[2, ])
+rownames(Pquality) <- c("Coefficient","Std. Errors","z stat","p-value")
+knitr::kable(Pquality)
+```
+
+### Accuracy of Train data
+```{r}
+pred <- predict(multi_log.final,train_data,na.action=na.pass, type="probs")
+pred_class <- predict(multi_log.final,train_data)
+caret::confusionMatrix(as.factor(pred_class),as.factor(train_data$median_listing_price_clas))
+```
+
+### Accuracy on test data  
+```{r}
+pred_test<- predict(multi_log.final,test_data,na.action=na.pass, type="probs")
+pred_test_class <- predict(multi_log.final,test_data)
+caret::confusionMatrix(as.factor(pred_test_class),as.factor(test_data$median_listing_price_clas))
+```
+
+
+
+
+
+
