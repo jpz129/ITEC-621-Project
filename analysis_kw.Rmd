@@ -279,10 +279,11 @@ for (i in 3:100) {
   }
 }
 print(paste("The optimal value of k is",best.k,"with an overall error rate of",best.error.rate))
+
 ```
 
-```{r knn results}
 
+```{r knn results}
 accuracy <- sum(knn.mod == data_test_results) / length(data_test_results)
 
 print(paste("the knn for classification accuracy is",(accuracy*100),"%"))
@@ -290,8 +291,8 @@ print(paste("the knn for classification accuracy is",(accuracy*100),"%"))
 conf.mat <- table(knn.mod, data_test_results)
 
 conf.mat
-
 ```
+
 
 Pretty good!
 
@@ -331,6 +332,91 @@ names(knn.stats) <-
     c("Accuracy Rate", "Error Rate", "Prop of Correct Highs", "Prop of Correct Mediums", "Prop of Correct Lows")
 
 knn.stats
+
+```
+
+Adding date
+
+```{r date}
+
+library(lubridate)
+
+data_log_datesep <- data_log %>% 
+  mutate(year = year(date), month = month(date), day = mday(date))
+
+data_log_datesep$month_consec <- 0
+for (i in 1:nrow(data_log_datesep)) {
+  if (data_log_datesep$year[i] == "2020") {
+    data_log_datesep$month_consec[i] <- data_log_datesep$month[i]
+  } else if (data_log_datesep$year[i] == "2021") {
+    data_log_datesep$month_consec[i] <- (data_log_datesep$month[i] + 12)
+  }
+}
+
+```
+
+
+```{r}
+
+#Can I do knn with Division and date?
+data_log_knn <- data_log_datesep[,c(3,4,6,8,9,11,15)]
+as.data.frame(data_log_knn)
+
+#Should set.seed again? or not  
+set.seed(123)
+train <- sample(nrow(data_log_knn),0.8*nrow(data_log_knn))
+
+data_train <- data_log_knn[train,-6]
+data_train_results <- data_log_knn[train,6]
+
+data_test <- data_log_knn[-train,-6]
+data_test_results <- data_log_knn[-train,6]
+
+knn.mod.date.consec <- knn(data_train, data_test, data_train_results, k=12)
+
+```
+
+```{r results consecutive date}
+
+accuracy <- sum(knn.mod.date.consec == data_test_results) / length(data_test_results)
+
+print(paste("the knn for classification accuracy is",(accuracy*100),"%"))
+
+conf.mat.consec <- table(knn.mod.date.consec, data_test_results)
+
+conf.mat.consec
+
+```
+
+```{r regular date}
+
+#Can I do knn with Division and date?
+data_log_knn <- data_log_datesep[,c(3,4,6,8,9,11,12,13,14)]
+as.data.frame(data_log_knn)
+
+#Should set.seed again? or not  
+set.seed(123)
+train <- sample(nrow(data_log_knn),0.8*nrow(data_log_knn))
+
+data_train <- data_log_knn[train,-6]
+data_train_results <- data_log_knn[train,6]
+
+data_test <- data_log_knn[-train,-6]
+data_test_results <- data_log_knn[-train,6]
+
+knn.mod.date <- knn(data_train, data_test, data_train_results, k=12)
+
+```
+
+```{r results regular date}
+
+accuracy <- sum(knn.mod.date == data_test_results) / length(data_test_results)
+
+print(paste("the knn for classification accuracy is",(accuracy*100),"%"))
+
+conf.mat.date <- table(knn.mod.date, data_test_results)
+
+conf.mat.date
 
 ```
 
