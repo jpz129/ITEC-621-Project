@@ -209,7 +209,7 @@ lasso.coef
 
 ```{r}
 lasso.data <- data_log[,-c(8)]
-write.csv(lasso.data, "lasso_dataset")
+write.csv(lasso.data, "lasso_dataset.csv")
 ```
 
 remove case and pop_dens
@@ -242,8 +242,8 @@ nrow(train_data)
 nrow(test_data)
 names(train_data)
 
-# write.csv(train_data, "train_dataset")
-# write.csv(test_data, "test_dataset")
+write.csv(train_data, "train_dataset.csv")
+write.csv(test_data, "test_dataset.csv")
 ```
 ## train/test regression
 ```{r}
