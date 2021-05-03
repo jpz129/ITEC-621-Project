@@ -83,7 +83,7 @@ hist(data$Median_Household_Income_2019,col='orange',main='Median_Household_Incom
 ## log transform
 ```{r}
 names(data)
-data[,-c(3,10)] %>% 
+data[,-c(3,10,11)] %>% 
   mutate_at(1:8, list(log = ~ log(.))) ->
   data_log
 data_log <- as.data.frame(Map(function(x) replace(x, is.infinite(x), 0), data_log))
@@ -92,7 +92,8 @@ data_log <- cbind('date'=data$date,'Division'=data$Division,data_log)
 # data_log <- cbind('Division'=data$Division,data_log)
 data_log <- na.omit(data_log)
 names(data_log)
-data_log$Division <- as.factor(data_log$Division)
+# as.factor(data_log$Division)
+names(data_log)
 ```
 
 ## pairplot
@@ -152,8 +153,8 @@ plot(lm.covid.fit2, which = 1)
 lm.fit<-lm(median_listing_price_log~.,data=data_log)
 summary(lm.fit) # pop_density_sqmi_log NA due to strong collinearity # high R2
 
-lm.fit<-lm(median_listing_price_log~.+Division*deaths_per_1000_log,data=data_log)
-summary(lm.fit)
+# lm.fit<-lm(median_listing_price_log~.+Division*deaths_per_1000_log,data=data_log)
+# summary(lm.fit)
 ```
 
 
@@ -208,8 +209,9 @@ lasso.coef
 
 
 ```{r}
-lasso.data <- data_log[,-c(8)]
-write.csv(lasso.data, "lasso_dataset.csv")
+names(data_log)
+lasso.data <- data_log[,-c(7,10)]
+# write.csv(lasso.data, "lasso_dataset.csv")
 ```
 
 remove case and pop_dens
@@ -242,8 +244,8 @@ nrow(train_data)
 nrow(test_data)
 names(train_data)
 
-write.csv(train_data, "train_dataset.csv")
-write.csv(test_data, "test_dataset.csv")
+# write.csv(train_data, "train_dataset.csv")
+# write.csv(test_data, "test_dataset.csv")
 ```
 ## train/test regression
 ```{r}
