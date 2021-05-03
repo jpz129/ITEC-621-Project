@@ -91,6 +91,7 @@ library(randomForest)
 
 
 ```{r}
+set.seed(1)
 n_trees <- seq(50, 1000, by = 50)
 acc <- c()
 for (i in seq(length(n_trees))){
@@ -124,8 +125,9 @@ plot(n_trees, acc, type = "l")
 ```
 
 ```{r}
+set.seed(1)
 rf <- randomForest(as.factor(median_listing_price_clas) ~ ., data = train_data,
-                   n_tree=200, importance = TRUE)
+                   n_tree=100, importance = TRUE)
 ```
 
 ```{r}
