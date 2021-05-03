@@ -76,13 +76,14 @@ hist(data$Median_Household_Income_2019,col='orange',main='Median_Household_Incom
 
 
 ```{r message=F}
-ggpairs(data,lower = list(continuous = wrap("points", alpha = 0.05)))
+# library(GGally)
+# ggpairs(data,lower = list(continuous = wrap("points", alpha = 0.05)))
 ```
 
 ## log transform
 ```{r}
 names(data)
-data[,-c(3,10)] %>% 
+data[,-c(3,10,11)] %>% 
   mutate_at(1:8, list(log = ~ log(.))) ->
   data_log
 data_log <- as.data.frame(Map(function(x) replace(x, is.infinite(x), 0), data_log))
@@ -91,13 +92,14 @@ data_log <- cbind('date'=data$date,'Division'=data$Division,data_log)
 # data_log <- cbind('Division'=data$Division,data_log)
 data_log <- na.omit(data_log)
 names(data_log)
-data_log$Division <- as.factor(data_log$Division)
+# as.factor(data_log$Division)
+names(data_log)
 ```
 
 ## pairplot
 ```{r message=F}
-library(GGally)
-ggpairs(data_log,lower = list(continuous = wrap("points", alpha = 0.05))) # some still skewed..
+# library(GGally)
+# ggpairs(data_log,lower = list(continuous = wrap("points", alpha = 0.05))) # some still skewed..
 ```
 
 ```{r}
@@ -108,7 +110,7 @@ hist(data_log$POP_ESTIMATE_2019,col="blue",main="POP_ESTIMATE_2019",xlab = NULL)
 hist(data_log$cases_per_1000,col="pink",main="cases_per_1000",xlab = NULL)
 hist(data_log$deaths_per_1000,col = 'purple',main = 'deaths_per_1000',xlab = NULL)
 hist(data_log$county_land_area,col='grey',main='county_land_area',xlab = NULL)
-hist(data_log$pop_density_sqmi,col='brown',main='county_land_area',xlab = NULL)
+# hist(data_log$pop_density_sqmi,col='brown',main='county_land_area',xlab = NULL)
 hist(data_log$Median_Household_Income_2019,col='orange',main='Median_Household_Income_2019',xlab = NULL)
 ```
 
@@ -116,15 +118,16 @@ hist(data_log$Median_Household_Income_2019,col='orange',main='Median_Household_I
 # Model
 ## COVID effect on listing price
 ```{r}
+library(nnet)
 lm.covid.fit<-lm(median_listing_price_log~cases_per_1000_log,data=data_log)
 summary(lm.covid.fit)
 lm.covid.fit2<-lm(median_listing_price_log~deaths_per_1000_log,data=data_log)
 summary(lm.covid.fit2)
 
-lm.covid.fit3<-multinom(median_listing_price_clas~cases_per_1000_log,data=data_log)
-summary(lm.covid.fit3)
-lm.covid.fit4<-multinom(median_listing_price_clas~deaths_per_1000_log,data=data_log)
-summary(lm.covid.fit4)
+# lm.covid.fit3<-multinom(median_listing_price_clas~cases_per_1000_log,data=data_log)
+# summary(lm.covid.fit3)
+# lm.covid.fit4<-multinom(median_listing_price_clas~deaths_per_1000_log,data=data_log)
+# summary(lm.covid.fit4)
 ```
 
 ```{r}
@@ -137,11 +140,11 @@ plot(lm.covid.fit, which = 1)
 bptest(lm.covid.fit2)
 plot(lm.covid.fit2, which = 1)
 
-bptest(lm.covid.fit3)
-plot(lm.covid.fit3, which = 1)
-
-bptest(lm.covid.fit4)
-plot(lm.covid.fit4, which = 1)
+# bptest(lm.covid.fit3)
+# plot(lm.covid.fit3, which = 1)
+# 
+# bptest(lm.covid.fit4)
+# plot(lm.covid.fit4, which = 1)
 ```
 
 
@@ -149,6 +152,9 @@ plot(lm.covid.fit4, which = 1)
 ```{r}
 lm.fit<-lm(median_listing_price_log~.,data=data_log)
 summary(lm.fit) # pop_density_sqmi_log NA due to strong collinearity # high R2
+
+# lm.fit<-lm(median_listing_price_log~.+Division*deaths_per_1000_log,data=data_log)
+# summary(lm.fit)
 ```
 
 
@@ -173,8 +179,8 @@ summary(multi_log.fit)
 ```{r}
 library(glmnet)
 set.seed(1)
-names(train_data)
-x <- model.matrix(median_listing_price_log~.-median_listing_price_clas,data = data_log)[,-1]
+# names(train_data)
+x <- model.matrix(median_listing_price_log~.,data = data_log)[,-1]
 y <- data_log$median_listing_price_log 
 lasso <- glmnet(x, y, alpha=1) 
 set.seed(1)
@@ -186,6 +192,26 @@ cbind("Best Lambda"=lasso.best.lambda,
       "Best 10FCV MSE" = lasso.min.mse)
 lasso.coef <- coef(lasso, s=lasso.best.lambda) 
 lasso.coef
+
+# x <- model.matrix(median_listing_price_log~.+Division*deaths_per_1000_log,data = data_log)[,-1]
+# y <- data_log$median_listing_price_log 
+# lasso <- glmnet(x, y, alpha=1) 
+# set.seed(1)
+# lasso.cv.10Fold <- cv.glmnet(x,y,alpha=1) 
+# lasso.best.lambda <- lasso.cv.10Fold$lambda.min 
+# lasso.min.mse <- min(lasso.cv.10Fold$cvm)
+# cbind("Best Lambda"=lasso.best.lambda, 
+#       "Log(Lambda)"=log(lasso.best.lambda), 
+#       "Best 10FCV MSE" = lasso.min.mse)
+# lasso.coef <- coef(lasso, s=lasso.best.lambda) 
+# lasso.coef
+```
+
+
+```{r}
+names(data_log)
+lasso.data <- data_log[,-c(7,10)]
+# write.csv(lasso.data, "lasso_dataset.csv")
 ```
 
 remove case and pop_dens
@@ -193,9 +219,9 @@ final predictors: date, Division, POP_ESTIMATE_2019_log, Median_Household_Income
 
 ## final reg
 ```{r}
-reg.final <- lm(median_listing_price_log ~ date + Division + POP_ESTIMATE_2019_log + 
+reg.final <- lm(median_listing_price_log ~ date + POP_ESTIMATE_2019_log + 
                   Median_Household_Income_2019_log + total_listing_count_log + 
-                  deaths_per_1000_log + county_land_area_log, data=data_log)
+                  Division + deaths_per_1000_log + county_land_area_log, data=data_log)
 summary(reg.final)
 ```
 
@@ -212,11 +238,14 @@ summary(multi_log.final)
 ```{r}
 set.seed(123)
 train <- sample(nrow(data_log),0.8*nrow(data_log))
-train_data <- data_log[train,-c(7,10)]
-test_data <- data_log[-train,-c(7,10)]
+train_data <- data_log[train,-c(3)]
+test_data <- data_log[-train,-c(3)]
 nrow(train_data)
 nrow(test_data)
 names(train_data)
+
+# write.csv(train_data, "train_dataset.csv")
+# write.csv(test_data, "test_dataset.csv")
 ```
 ## train/test regression
 ```{r}
